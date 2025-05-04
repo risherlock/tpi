@@ -1,4 +1,3 @@
-#include <chrono>
 #include <iostream>
 
 #include "serial.h"
@@ -33,14 +32,7 @@ bool serial_init(const char *port_name, struct sp_port **port)
   return true;
 }
 
-bool serial_read(const char sp_port *port, char *buf, int *len)
+int serial_read(sp_port *port, char *buf, const int buf_len)
 {
-  *len = sp_nonblocking_read(port, rx_buf, sizeof(rx_buf));
-
-  if (*len > 0)
-  {
-    return true;
-  }
-
-  return false;
+  return sp_nonblocking_read(port, buf, buf_len);
 }

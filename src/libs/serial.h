@@ -4,6 +4,6 @@
 #include <libserialport.h>
 
 bool serial_init(const char *port_name, struct sp_port **port);
-bool serial_read(const sp_port *port, char *buf, int *len);
+int serial_read(sp_port *port, char *buf, const int buf_len);
 
 #endif // serial.h
