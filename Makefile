@@ -2,6 +2,7 @@ target = main
 build_dir = build
 
 cpp_sources = \
+serial.cpp \
 main.cpp \
 
 c_sources = \
