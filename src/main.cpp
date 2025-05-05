@@ -15,7 +15,7 @@ int main(void)
     return 1;
   }
 
-  std::cout << "Serial port initialized successfully!" << std::endl;
+  std::cerr << "Serial port initialized successfully!" << std::endl;
 
   char rx_buf[PI_RX_BUFFER_LEN] = {0};
   int rx_len = 0;
