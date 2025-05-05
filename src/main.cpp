@@ -34,8 +34,19 @@ int main(void)
     }
     else if (rx_len < 0)
     {
-      std::cerr << "Error: Could not read from the serial port" << std::endl;
-      break;
+      std::cerr << "Read error: " << sp_last_error_message() << std::endl;
+    }
+
+    char tx_buf[] = "$0:123#";
+    int tx_len = sp_nonblocking_write(port, tx_buf, sizeof(tx_buf));
+    
+    if (tx_len < 0)
+    {
+      std::cerr << "Write error: " << sp_last_error_message() << std::endl;
+    }
+    else
+    {
+      sp_drain(port);
     }
   }
 

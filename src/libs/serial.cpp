@@ -11,9 +11,9 @@ bool serial_init(const char *port_name, struct sp_port **port)
     return false;
   }
 
-  if (sp_open(*port, SP_MODE_READ) != SP_OK)
+  if (sp_open(*port, SP_MODE_READ_WRITE) != SP_OK)
   {
-    std::cerr << "Error: Unable to open port for reading" << std::endl;
+    std::cerr << "Error: Unable to open port for read/write" << std::endl;
     sp_free_port(*port);
     return false;
   }
