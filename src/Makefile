@@ -20,7 +20,6 @@ cpp_compiler = g++ -std=c++11
 
 linker_flags = $(lib_dir) $(libs) -g
 compiler_flags = -g -O3 -Wall -Wextra -Werror -lm $(includes) $(defines)
-compiler_flags += -O2 -march=armv6 -mfpu=vfp -mfloat-abi=hard -pthread
 
 objects += $(addprefix $(build_dir)/,$(notdir $(c_sources:.c=.o)))
 objects += $(addprefix $(build_dir)/,$(notdir $(cpp_sources:.cpp=.o)))

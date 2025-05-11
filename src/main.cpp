@@ -1,55 +1,53 @@
-#include <chrono>
 #include <iostream>
+#include <arpa/inet.h>
+#include <cstring>
+#include <unistd.h>
 
-#include "serial.h"
-#include "config.h"
+#define PORT 8080
 
-int main(void)
+int main()
 {
-  struct sp_port *port = NULL;
-  const char *port_name = PI_SERIAL_PORT;
+    int sockfd;
+    char buffer[1024];
+    struct sockaddr_in servaddr, cliaddr;
 
-  if (!serial_init(port_name, &port))
-  {
-    std::cerr << "Failed to initialize serial port" << std::endl;
-    return 1;
-  }
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("socket creation failed");
+        return 1;
+    }
 
-  std::cerr << "Serial port initialized successfully!" << std::endl;
+    memset(&servaddr, 0, sizeof(servaddr));
+    memset(&cliaddr, 0, sizeof(cliaddr));
 
-  char rx_buf[PI_RX_BUFFER_LEN] = {0};
-  int rx_len = 0;
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = INADDR_ANY;
+    servaddr.sin_port = htons(PORT);
 
-  while (1)
-  {
-    rx_len = serial_read(port, rx_buf, sizeof(rx_buf));
+    if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+        perror("bind failed");
+        return 1;
+    }
+
+    std::cout << "UDP Server listening on port " << PORT << std::endl;
+
+    socklen_t len = sizeof(cliaddr);
   
-    if (rx_len > 0)
+    while (true)
     {
-      auto now = std::chrono::system_clock::now();
-      auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        int n = recvfrom(sockfd, buffer, sizeof(buffer) - 1, 0,
+                         (struct sockaddr *)&cliaddr, &len);
+        if (n < 0) {
+            perror("recvfrom failed");
+            continue;
+        }
+        buffer[n] = '\0';
+        std::cout << "Received: " << buffer << std::endl;
 
-      std::cout << ms << ": ";
-      std::cout.write(rx_buf, rx_len);
-    }
-    else if (rx_len < 0)
-    {
-      std::cerr << "Read error: " << sp_last_error_message() << std::endl;
+        const char *reply = "Hello from Pi (UDP)!\n";
+        sendto(sockfd, reply, strlen(reply), 0, (struct sockaddr *)&cliaddr, len);
     }
 
-    char tx_buf[] = "$0:123#";
-    int tx_len = sp_nonblocking_write(port, tx_buf, sizeof(tx_buf));
-    
-    if (tx_len < 0)
-    {
-      std::cerr << "Write error: " << sp_last_error_message() << std::endl;
-    }
-    else
-    {
-      sp_drain(port);
-    }
-  }
-
-  std::cout << "Program exiting" << std::endl;
-  return 0;
+    close(sockfd);
+    return 0;
 }
