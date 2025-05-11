@@ -70,3 +70,9 @@ Software for the RaspberryPi zero onboard the Tamariw satellite.
       sudo lsof /dev/ttyAMA0                        # Should show no output
       systemctl status serial-getty@ttyAMA0.service # Should show "Active: inactive (dead)"
     ```
+
+sudo systemctl disable ufw
+sudo ufw disable
+
+hostname -I # Hostname of the Pi in its local network 
+Make sure to disable autoconnect to the router
