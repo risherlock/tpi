@@ -6,72 +6,151 @@
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
+#include "serial.h"
+#include "config.h"
 
 #define PORT 8080
+#define BUF_SIZE 1024
 
-std::string generate_fake_sensor_data() {
-    int temp = rand() % 10 + 20; // e.g., random 20–29 °C
-    int humidity = rand() % 30 + 40; // e.g., random 40–69 %
-    return "Temp: " + std::to_string(temp) + "°C, Humidity: " + std::to_string(humidity) + "%";
+char serial_rx_buf[PI_RX_BUFFER_LEN] = {0};
+
+int read_line_from_serial(struct sp_port* port, char* buffer, size_t buffer_size) {
+  size_t total_len = 0;
+  bool in_frame = false;
+
+  while (total_len < buffer_size - 1) { // Leave space for null terminator
+    char byte;
+    int rx = serial_read(port, &byte, 1);  // Read 1 byte at a time
+
+    if (rx > 0) {
+      if (!in_frame) {
+        // Wait for start marker
+        if (byte == '$') {
+          in_frame = true;
+          buffer[0] = byte;
+          total_len = 1;
+        }
+        continue;
+      }
+
+      buffer[total_len++] = byte;
+
+      if (byte == '#') {
+        buffer[total_len] = '\0'; // Null-terminate
+        return total_len;     // Success
+      }
+
+      // Optionally: detect corrupted/too-long frame
+    } else if (rx < 0) {
+      std::cerr << "Serial read error!" << std::endl;
+      return -1;
+    } else {
+      // No data, wait a bit
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
+
+  buffer[buffer_size - 1] = '\0'; // Safety
+  return 0; // Frame too long or not terminated
 }
 
 int main()
 {
-    srand(time(nullptr)); // seed random generator
+  // -------------------- Serial Init --------------------
+  struct sp_port *port = NULL;
+  const char *port_name = PI_SERIAL_PORT;
 
-    int sockfd;
-    char buffer[1024];
-    struct sockaddr_in servaddr, cliaddr;
+  if (!serial_init(port_name, &port)) {
+  std::cerr << "Failed to initialize serial port" << std::endl;
+  return 1;
+  }
 
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd < 0) {
-        perror("socket creation failed");
-        return 1;
-    }
+  std::cerr << "Serial port initialized successfully!" << std::endl;
 
-    memset(&servaddr, 0, sizeof(servaddr));
-    memset(&cliaddr, 0, sizeof(cliaddr));
+  // -------------------- UDP Init -----------------------
+  int sockfd;
+  char udp_rx_buf[BUF_SIZE];
+  struct sockaddr_in servaddr{}, cliaddr{};
 
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(PORT);
+  sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (sockfd < 0) {
+  perror("socket creation failed");
+  return 1;
+  }
 
-    if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
-        perror("bind failed");
-        return 1;
-    }
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_addr.s_addr = INADDR_ANY;
+  servaddr.sin_port = htons(PORT);
 
-    std::cout << "UDP Server listening on port " << PORT << std::endl;
+  if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+  {
+  perror("bind failed");
+  close(sockfd);
+  return 1;
+  }
 
-    socklen_t len = sizeof(cliaddr);
+  std::cout << "UDP Server listening on port " << PORT << std::endl;
 
-    while (true)
+  socklen_t len = sizeof(cliaddr);
+  bool client_connected = false;
+
+  while (true)
+  {
+  int n = recvfrom(sockfd, udp_rx_buf, sizeof(udp_rx_buf) - 1, MSG_DONTWAIT, (struct sockaddr *)&cliaddr, &len);
+
+  // Telecommands from GS
+  if (n > 0)
+  {
+    udp_rx_buf[n] = '\0';
+    std::string received(udp_rx_buf);
+
+    if (received == "Hello from Qt")
     {
-        std::cout << "Waiting for client to send 'start'...\n";
-        int n = recvfrom(sockfd, buffer, sizeof(buffer) - 1, 0,
-                         (struct sockaddr *)&cliaddr, &len);
-        if (n < 0) {
-            perror("recvfrom failed");
-            continue;
-        }
-
-        buffer[n] = '\0';
-        std::string received(buffer);
-        std::cout << "Received: " << received << std::endl;
-
-        if (received == "Hello from Qt") {
-            std::cout << "Starting to send sensor data to client...\n";
-            while (true) {
-                std::string message = generate_fake_sensor_data();
-                sendto(sockfd, message.c_str(), message.length(), 0,
-                       (struct sockaddr *)&cliaddr, len);
-                std::cout << "Sent: " << message << std::endl;
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                // You can break this loop based on some condition or "stop" message
-            }
-        }
+    std::cout << "Client connected: " << inet_ntoa(cliaddr.sin_addr) << ":" << ntohs(cliaddr.sin_port) << std::endl;
+    client_connected = true;
+    } else if (received == "Bye from Qt")
+    {
+    std::cout << "Client disconnected: " << inet_ntoa(cliaddr.sin_addr) << ":" << ntohs(cliaddr.sin_port) << std::endl;
+    client_connected = false;
+    } else
+    {
+    std::cout << "Unknown message: " << received << std::endl;
     }
+  }
 
-    close(sockfd);
-    return 0;
+  // Forward serial data to GS
+  if (client_connected)
+  {
+    // int rx_len = serial_read(port, serial_rx_buf, sizeof(serial_rx_buf));
+    int rx_len = read_line_from_serial(port, serial_rx_buf, sizeof(serial_rx_buf));
+// if (rx_len > 0) {
+//   std::cout << "Received line: " << serial_rx_buf;
+// }
+
+
+    if (rx_len > 0)
+    {
+    std::cout << "Received " << rx_len << " bytes: " << serial_rx_buf << std::endl;
+
+    int sent = sendto(sockfd, serial_rx_buf, rx_len, 0, (struct sockaddr *)&cliaddr, len);
+    memset(serial_rx_buf, 0, sizeof(serial_rx_buf));
+
+    if (sent < 0)
+    {
+      perror("sendto failed");
+    }
+    } 
+    else if (rx_len < 0)
+    {
+    std::cerr << "Serial read error: " << sp_last_error_message() << std::endl;
+    }
+  }
+
+  // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+
+  close(sockfd);
+  sp_close(port);
+
+  return 0;
 }
