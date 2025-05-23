@@ -67,7 +67,7 @@ sudo apt update
       sudo systemctl mask serial-getty@ttyAMA0.service
     ```
 
-4. Verify&mdash;after `sudo boot`.
+4. Verify&mdash;after `sudo reboot`.
 
     ```
       ls -l /dev/ttyAMA0                            # Should show permissions 0666
