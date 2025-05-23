@@ -4,6 +4,10 @@ Software for the RaspberryPi zero onboard the Tamariw satellite.
 
 ## Dependencies
 
+```
+sudo apt update
+```
+
 1. git - `sudo apt install git`
 2. libserialport - `sudo apt install libserialport-dev`
 
