@@ -10,6 +10,7 @@ sudo apt update
 
 1. git - `sudo apt install git`
 2. libserialport - `sudo apt install libserialport-dev`
+3. lsof - `sudo apt install lsof`
 
 ### Creating default serial port
 
@@ -70,7 +71,7 @@ sudo apt update
 4. Verify&mdash;after `sudo reboot`.
 
     ```
-      ls -l /dev/ttyAMA0                            # Should show permissions 0666
+      ls -l /dev/ttyAMA0                            # Should show crw-rw-rw
       sudo lsof /dev/ttyAMA0                        # Should show no output
       systemctl status serial-getty@ttyAMA0.service # Should show "Active: inactive (dead)"
     ```
@@ -78,5 +79,6 @@ sudo apt update
 sudo systemctl disable ufw
 sudo ufw disable
 
-hostname -I # Hostname of the Pi in its local network 
-Make sure to disable autoconnect to the router
+### Some useful commands
+
+1. To view IP address of Pi: `hostname -I`

@@ -9,10 +9,40 @@
 #include "serial.h"
 #include "config.h"
 
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <net/if.h>
+
 #define PORT 8080
 #define BUF_SIZE 1024
 
 char serial_rx_buf[PI_RX_BUFFER_LEN] = {0};
+
+// Helper: Get IP of interface
+std::string get_local_ip() {
+    struct ifaddrs *ifaddr, *ifa;
+    char ip[INET_ADDRSTRLEN];
+
+    if (getifaddrs(&ifaddr) == -1) {
+        perror("getifaddrs");
+        return "Unknown";
+    }
+
+    for (ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr) continue;
+        if (ifa->ifa_addr->sa_family == AF_INET &&
+            !(ifa->ifa_flags & IFF_LOOPBACK)) {
+            
+            struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;
+            inet_ntop(AF_INET, &(sa->sin_addr), ip, INET_ADDRSTRLEN);
+            freeifaddrs(ifaddr);
+            return std::string(ip);
+        }
+    }
+
+    freeifaddrs(ifaddr);
+    return "Unknown";
+}
 
 int read_line_from_serial(struct sp_port* port, char* buffer, size_t buffer_size) {
   size_t total_len = 0;
@@ -84,19 +114,21 @@ int main()
 
   if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
   {
-  perror("bind failed");
-  close(sockfd);
-  return 1;
+    perror("bind failed");
+    close(sockfd);
+    return 1;
   }
 
   std::cout << "UDP Server listening on port " << PORT << std::endl;
+  std::string local_ip = get_local_ip();
+  std::cout << "UDP Server listening on IP " << local_ip << ", port " << PORT << std::endl;
 
   socklen_t len = sizeof(cliaddr);
   bool client_connected = false;
 
   while (true)
   {
-  int n = recvfrom(sockfd, udp_rx_buf, sizeof(udp_rx_buf) - 1, MSG_DONTWAIT, (struct sockaddr *)&cliaddr, &len);
+    int n = recvfrom(sockfd, udp_rx_buf, sizeof(udp_rx_buf) - 1, MSG_DONTWAIT, (struct sockaddr *)&cliaddr, &len);
 
   // Telecommands from GS
   if (n > 0)
@@ -104,17 +136,30 @@ int main()
     udp_rx_buf[n] = '\0';
     std::string received(udp_rx_buf);
 
-    if (received == "Hello from Qt")
+    if
+    (received == "Hello from Qt")
     {
     std::cout << "Client connected: " << inet_ntoa(cliaddr.sin_addr) << ":" << ntohs(cliaddr.sin_port) << std::endl;
     client_connected = true;
-    } else if (received == "Bye from Qt")
+    }
+    else if (received == "Bye from Qt")
     {
     std::cout << "Client disconnected: " << inet_ntoa(cliaddr.sin_addr) << ":" << ntohs(cliaddr.sin_port) << std::endl;
     client_connected = false;
-    } else
+    }
+    else // Forward telecommand to STM32
     {
-    std::cout << "Unknown message: " << received << std::endl;
+      int tx_len = sp_nonblocking_write(port, udp_rx_buf, n);
+      
+      if (tx_len < 0)
+      {
+        std::cerr << "Write error: " << sp_last_error_message() << std::endl;
+      }
+      else
+      {
+        sp_drain(port);
+      }
+      std::cout << "Unknown message: " << received << std::endl;
     }
   }
 
@@ -130,7 +175,7 @@ int main()
 
     if (rx_len > 0)
     {
-    std::cout << "Received " << rx_len << " bytes: " << serial_rx_buf << std::endl;
+    // std::cout << "Received " << rx_len << " bytes: " << serial_rx_buf << std::endl;
 
     int sent = sendto(sockfd, serial_rx_buf, rx_len, 0, (struct sockaddr *)&cliaddr, len);
     memset(serial_rx_buf, 0, sizeof(serial_rx_buf));
