@@ -79,6 +79,36 @@ sudo apt update
 sudo systemctl disable ufw
 sudo ufw disable
 
+## Run the code on startup
+
+1. Create the service file `sudo nano /etc/systemd/system/main.service`
+2. Paste following contents
+    ```
+    [Unit]
+    Description=Run main executable at startup
+    After=network.target
+
+    [Service]
+    ExecStart=/home/tamariw/tpi/src/build/main
+    WorkingDirectory=/home/tamariw/tpi/src/build
+    StandardOutput=journal
+    StandardError=journal
+    Restart=always
+    User=tamariw
+
+  	[Install]
+  	WantedBy=multi-user.target
+    ```
+3. Give execute excess `chmod +x /home/tamariw/tpi/src/build/main`
+4. Enable and start the service
+    ```
+    sudo systemctl daemon-reexec
+    sudo systemctl enable main.service
+    sudo systemctl start main.service
+    ```
+5. Check if enabled `systemctl is-enabled main.service`
+6. Check service status `systemctl status main.service`
+
 ### Some useful commands
 
 1. To view IP address of Pi: `hostname -I`
