@@ -99,7 +99,7 @@ sudo ufw disable
   	[Install]
   	WantedBy=multi-user.target
     ```
-3. Give execute excess `chmod +x /home/tamariw/tpi/src/build/main`
+3. Give execute excess `sudo chmod +x /home/tamariw/tpi/src/build/main`
 4. Enable and start the service
     ```
     sudo systemctl daemon-reexec
